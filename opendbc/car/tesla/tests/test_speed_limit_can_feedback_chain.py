@@ -1,6 +1,5 @@
 from types import SimpleNamespace
 
-from opendbc.sunnypilot.car.tesla.carstate_ext import CarStateExt
 from opendbc.sunnypilot.car.tesla.speed_limit_controller import TeslaSpeedLimitController
 from opendbc.sunnypilot.car.tesla.values import TeslaFlagsSP
 
@@ -33,7 +32,7 @@ def make_control():
   return SimpleNamespace(enabled=True, cruiseControl=SimpleNamespace(cancel=False))
 
 
-def test_complete_can_feedback_chain_steps_27_to_30_with_fresh_idle_templates():
+def test_controller_steps_27_to_30_when_feedback_and_idle_templates_are_observed():
   controller = TeslaSpeedLimitController(SimpleNamespace(flags=TeslaFlagsSP.AUTO_SPEED_LIMIT))
   state = make_state()
   control = make_control()
@@ -44,21 +43,24 @@ def test_complete_can_feedback_chain_steps_27_to_30_with_fresh_idle_templates():
   assert len(first) == 1
   assert first[0].dat == bytes.fromhex("2955000100000080")
 
-  # Tesla reports 28 km/h and the observed 0x3C2 stream returns to idle.
+  # Simulate Tesla reporting 28 km/h and a fresh idle template being observed.
   state.out.cruiseState.speedCluster = 28 / 3.6
-  CarStateExt.update_speed_button_template(state, IDLE_TEMPLATE, 2_000_000_000)
+  state.tesla_speed_button_template = IDLE_TEMPLATE
+  state.tesla_speed_button_template_nanos = 2_000_000_000
   second = controller.update(control, state, 2_000_000_000)
   assert len(second) == 1
 
-  # Repeat for 29 km/h.
+  # Repeat for 29 km/h with another simulated idle-template update.
   state.out.cruiseState.speedCluster = 29 / 3.6
-  CarStateExt.update_speed_button_template(state, IDLE_TEMPLATE, 2_500_000_000)
+  state.tesla_speed_button_template = IDLE_TEMPLATE
+  state.tesla_speed_button_template_nanos = 2_500_000_000
   third = controller.update(control, state, 2_500_000_000)
   assert len(third) == 1
 
   # The final feedback reaches the target; no fourth tick should be emitted.
   state.out.cruiseState.speedCluster = 30 / 3.6
-  CarStateExt.update_speed_button_template(state, IDLE_TEMPLATE, 3_000_000_000)
+  state.tesla_speed_button_template = IDLE_TEMPLATE
+  state.tesla_speed_button_template_nanos = 3_000_000_000
   assert controller.update(control, state, 3_000_000_000) == []
   assert controller.current_display == 30
   assert controller.remaining_steps == 0
