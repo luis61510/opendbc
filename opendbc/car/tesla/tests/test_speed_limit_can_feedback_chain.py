@@ -80,3 +80,34 @@ def test_feedback_without_a_fresh_idle_template_does_not_send_next_tick():
   assert controller.update(control, state, 3_100_000_000) == []
   assert controller.pending_direction == 0
   assert controller.current_display == 28
+
+
+
+def test_autopilot_ownership_blocks_synthetic_speed_wheel_ticks():
+  controller = TeslaSpeedLimitController(SimpleNamespace(flags=TeslaFlagsSP.AUTO_SPEED_LIMIT))
+  state = make_state()
+  state.tesla_autopilot_active = True
+  control = make_control()
+
+  # AP owns the wheel controls; even a valid target and fresh template cannot
+  # cause SunnyPilot to synthesize a speed-wheel press.
+  assert controller.update(control, state, 1_000_000_000) == []
+  assert controller.update(control, state, 2_000_000_000) == []
+  assert controller.pending_direction == 0
+
+
+def test_manual_wheel_counter_pauses_controller_during_pending_feedback():
+  controller = TeslaSpeedLimitController(SimpleNamespace(flags=TeslaFlagsSP.AUTO_SPEED_LIMIT))
+  state = make_state()
+  control = make_control()
+
+  controller.update(control, state, 1_000_000_000)
+  assert len(controller.update(control, state, 1_500_000_000)) == 1
+
+  # A physical wheel event must win over a concurrent/late set-speed feedback.
+  state.tesla_manual_speed_adjustment_counter += 1
+  state.out.cruiseState.speedCluster = 28 / 3.6
+  state.tesla_speed_button_template_nanos = 2_000_000_000
+  assert controller.update(control, state, 2_000_000_000) == []
+  assert controller.manual_override_active
+  assert controller.pending_direction == 0
