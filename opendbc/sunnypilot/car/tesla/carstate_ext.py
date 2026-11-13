@@ -22,7 +22,6 @@ class CarStateExt:
 
     self.active_touch_points = 0
     self.gas_combo_prev = False
-    self.brake_combo_prev = False
 
   def update(self, ret: structs.CarState, ret_sp: structs.CarStateSP, can_parsers: dict[StrEnum, CANParser]) -> None:
     button_events = []
@@ -64,12 +63,8 @@ class CarStateExt:
     gas_combo = ret.gasPressed and ret.genericToggle and ret.cruiseState.enabled
     button_events += create_button_events(int(gas_combo), int(self.gas_combo_prev), {1: ButtonType.gapAdjustCruise})
 
-    # Add brake + scroll press combo as a button event for LKAS
-    brake_combo = ret.brakePressed and ret.genericToggle
-    button_events += create_button_events(int(brake_combo), int(self.brake_combo_prev), {1: ButtonType.lkas})
     ret.buttonEvents = button_events
     self.gas_combo_prev = gas_combo
-    self.brake_combo_prev = brake_combo
 
   @staticmethod
   def get_parser(CP: structs.CarParams, CP_SP: structs.CarParamsSP) -> dict[StrEnum, CANParser]:
